@@ -7,6 +7,7 @@ import android.graphics.Matrix
 import android.util.Log
 import androidx.camera.core.ImageProxy
 import androidx.exifinterface.media.ExifInterface
+import com.facebook.react.bridge.WritableMap
 import com.mrousavy.camera.CameraView
 import com.mrousavy.camera.InvalidFormatError
 import java.io.ByteArrayOutputStream
@@ -48,6 +49,7 @@ fun flipImage(imageBytes: ByteArray): ByteArray {
   val exif = ExifInterface(imageBytes.inputStream())
   val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
 
+  Log.d(CameraView.TAG, "flipImage orientation = ${orientation}") 
   when (orientation) {
     ExifInterface.ORIENTATION_ROTATE_180 -> {
       matrix.setRotate(180f)
@@ -78,7 +80,25 @@ fun flipImage(imageBytes: ByteArray): ByteArray {
   return stream.toByteArray()
 }
 
-fun ImageProxy.save(file: File, flipHorizontally: Boolean) {
+fun rotateImage(imageBytes: ByteArray, clockwiseRotationDegrees: Int, map: WritableMap): ByteArray {
+  val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+  val matrix = Matrix()
+
+  Log.d(CameraView.TAG, "rotateImage clockwise rotation degrees = ${clockwiseRotationDegrees}")
+
+  matrix.setRotate(clockwiseRotationDegrees.toFloat())
+
+  val newBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+  val stream = ByteArrayOutputStream()
+  newBitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
+
+  map.putInt("width", newBitmap.width)
+  map.putInt("height", newBitmap.height)
+
+  return stream.toByteArray()
+}
+
+fun ImageProxy.save(file: File, flipHorizontally: Boolean, map : WritableMap) {
   when (format) {
     // TODO: ImageFormat.RAW_SENSOR
     // TODO: ImageFormat.DEPTH_JPEG
@@ -88,6 +108,10 @@ fun ImageProxy.save(file: File, flipHorizontally: Boolean) {
 
       // copy image from buffer to byte array
       buffer.get(bytes)
+
+      // rotate image by indicated rotation degrees in order to achive
+      // the target rotation set during capture
+      bytes = rotateImage(bytes, imageInfo.rotationDegrees, map)
 
       if (flipHorizontally) {
         val milliseconds = measureTimeMillis {
@@ -99,6 +123,11 @@ fun ImageProxy.save(file: File, flipHorizontally: Boolean) {
       val output = FileOutputStream(file)
       output.write(bytes)
       output.close()
+
+      map.putString("path", file.absolutePath)
+      map.putString("mime", "image/jpeg")
+      map.putBoolean("isRawPhoto", isRaw)
+
     }
     ImageFormat.YUV_420_888 -> {
       // "prebuffer" simply contains the meta information about the following planes.
@@ -121,6 +150,12 @@ fun ImageProxy.save(file: File, flipHorizontally: Boolean) {
         output.write(bytes) // write the byte array to file
       }
       output.close()
+
+      map.putString("path", file.absolutePath)
+      map.putString("mime", "image/jpeg")
+      map.putInt("width", width)
+      map.putInt("height", height)
+      map.putBoolean("isRawPhoto", isRaw)
     }
     else -> throw InvalidFormatError(format)
   }
