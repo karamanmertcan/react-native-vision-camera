@@ -54,5 +54,5 @@ fun CameraCharacteristics.getFieldOfView(): Double {
   val focalLengths = this.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS)!!
   val sensorSize = this.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE)!!
 
-  return 2 * atan(sensorSize.bigger / (focalLengths[0] * 2)) * (180 / PI)
+  return 2 * atan(sensorSize.bigger / (focalLengths[0] * 1.8)) * (180 / PI)
 }
